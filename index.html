@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>July 4th Trip Voter</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
@@ -47,8 +46,6 @@ body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
 </div>
 
 <script>
-const supabaseClient = window.supabase.createClient('https://xtnwhthfuvgqgpxqfuhg.supabase.co', 'sb_publishable_KbTMYWdazy6uen-p9HtooQ_kqbPeLSe');
-
 const destinations = [
   { id:'mendocino', name:'Mendocino', desc:'Rugged coastal cliffs, Victorian charm, and serene art galleries.', img:'https://media.audleytravel.com/-/media/images/home/canada-and-the-usa/usa/places/istock_70194807_usa_mendocino_california_1028664_letterbox.jpg?q=60&w=1920&h=685', time:'4.5 hr', dest:'Mendocino,+CA', rednoteUrl:'http://xhslink.com/o/1k3BE7BNPXi', voteUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSf4Kmy5PVCfqJfXUus1_Qbs3EMb9ypVPhZG53lqJ1RzjWDR5w/viewform?usp=pp_url&entry.1535147419=Mendocino', details:'Mendocino is a quiet, stunning escape known for its dramatic cliff-side views, preserved Victorian-era architecture, and local art galleries. It stays much cooler than the inland valleys, making it a perfect spot to escape the heat. It’s ideal for peaceful walks and enjoying the rugged Northern California coast.' },
   { id:'carmel', name:'Carmel-by-the-Sea', desc:'Coastal breeze, great food, very pet-friendly.', img:'https://lh3.googleusercontent.com/gps-cs-s/APNQkAGHTnK7GWJHCHe8K6Q0tDtQM7as7BwaX9gmpeNoSu1la9htR59sDQ3yD_LN_4Y_CGJTYrrsE6VWxgvb_OjYi4-NuXOhPg9CBW0BKLaswgDQ3k39EPqHcPXIvuWtdH5TuNg54WtqLtHAKHSi=w972-h562-n-k-no', time:'1 hr 15 mins', dest:'Carmel-by-the-Sea,+CA', rednoteUrl:'http://xhslink.com/o/ABdVuhtqe1d', voteUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSf4Kmy5PVCfqJfXUus1_Qbs3EMb9ypVPhZG53lqJ1RzjWDR5w/viewform?usp=pp_url&entry.1535147419=Carmel-by-the-Sea', details:'Carmel is famous for its fairy-tale cottages, white-sand beach, and being incredibly pet-friendly. It will be cooler here (great to escape the heat). Easy to walk around town.' },
@@ -64,8 +61,6 @@ const MY_VOTES_KEY = 'july4_my_votes'; // now a SET of ids
 let userLocation = null;
 let currentVotes = {};
 let myVotes = new Set(); // tracks which destinations this user has voted for
-
-
 
 // --- Persistence ---
 const saveMyVotes = () => localStorage.setItem(MY_VOTES_KEY, JSON.stringify([...myVotes]));
@@ -106,23 +101,14 @@ const getUserLocation = () => new Promise(resolve => {
 });
 
 // --- Voting ---
-// --- Database Logic ---
-const vote = async (id) => {
-  const dest = destinations.find(d => d.id === id);
-  
-  // Save to Real Database
-  const { error } = await supabaseClient
-    .from('votes')
-    .insert([{ destination_name: dest.name }]);
-
-  if (error) {
-    showToast("Error saving to database!", false);
-    console.error(error);
-  } else {
-    showToast(`Voted for ${dest.name}! 🎉`, true);
-    // Close modal if open
-    document.getElementById('info-modal').classList.remove('active');
-  }
+const vote = (id) => {
+  if (myVotes.has(id)) { showToast('You already voted for this!', false); return; }
+  currentVotes[id]++;
+  myVotes.add(id);
+  saveMyVotes();
+  updateUrl();
+  renderDestinations();
+  showToast(`Voted for ${destinations.find(d=>d.id===id).name}! 🎉`, true);
 };
 
 const cancelVote = (id) => {
@@ -216,9 +202,11 @@ const openModal = (id) => {
         ${dest.rednoteUrl ? `<a href="${dest.rednoteUrl}" target="_blank" class="bg-red-50 text-red-700 hover:bg-red-100 text-sm font-semibold px-3 py-1.5 rounded-lg transition">📕 XHS Notes</a>` : ''}
       </div>
       <p class="text-gray-600 mt-4 leading-relaxed">${dest.details}</p>
-	<button onclick="vote('${dest.id}')" class="block w-full text-center bg-green-600 text-white font-bold py-3 px-4 rounded-xl mt-6 hover:bg-green-700 transition active:scale-95 shadow-lg">
-        ✅ Submit Vote for ${dest.name}
-      </button>
+	${dest.voteUrl ? `
+        <a href="${dest.voteUrl}" target="_blank" class="block w-full text-center bg-green-600 text-white font-bold py-3 px-4 rounded-xl mt-6 hover:bg-green-700 transition shadow-lg">
+          ✅ Submit Vote for ${dest.name}
+        </a>
+      ` : '<p class="text-xs text-gray-400 mt-4">Voting link not available.</p>'}
 
 
 	<button onclick="closeModal(event,true)" class="mt-6 w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-xl transition active:scale-95">Close</button>
