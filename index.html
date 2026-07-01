@@ -77,6 +77,20 @@ const loadMyVotes = () => {
   } catch { return new Set(); }
 };
 
+// --- URL ---
+const getVotesFromUrl = () => {
+  const params = new URLSearchParams(window.location.search);
+  const v = {};
+  destinations.forEach(d => { v[d.id] = parseInt(params.get(d.id)) || 0; });
+  return v;
+};
+
+const updateUrl = () => {
+  const p = new URLSearchParams();
+  Object.keys(currentVotes).forEach(k => p.set(k, currentVotes[k]));
+  window.history.replaceState({}, '', window.location.pathname + '?' + p.toString());
+};
+
 // --- Map ---
 const buildMapUrl = (dest) => {
   const origin = userLocation ? `${userLocation.lat},${userLocation.lng}` : ORIGIN;
@@ -93,37 +107,9 @@ const getUserLocation = () => new Promise(resolve => {
 
 // --- Voting ---
 // --- Database Logic ---
-/ Updated Vote function
 const vote = async (id) => {
   const dest = destinations.find(d => d.id === id);
   
-  // Save to Supabase
-  const { error } = await supabase.from('votes').insert([{ destination_name: dest.name }]);
-  
-  if (error) {
-    alert("Error saving vote: " + error.message);
-  } else {
-    // Instead of reloading, show a success message
-    alert(`Voted for ${dest.name}! 🎉`);
-    
-    // Optional: If you want to change the button color after voting, 
-    // you could call a function to refresh the UI here
-  }
-};
-
-const subscribeToVoteUpdates = () => {
-  supabaseClient
-    .channel('votes-changes')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes' }, async () => {
-      await fetchVoteCounts();
-      renderDestinations();
-    })
-    .subscribe();
-};
-const vote = async (id) => {
-  const dest = destinations.find(d => d.id === id);
-  if (myVotes.has(id)) return; // already voted for this place, ignore repeat clicks
-
   // Save to Real Database
   const { error } = await supabaseClient
     .from('votes')
@@ -132,17 +118,11 @@ const vote = async (id) => {
   if (error) {
     showToast("Error saving to database!", false);
     console.error(error);
-    return;
+  } else {
+    showToast(`Voted for ${dest.name}! 🎉`, true);
+    // Close modal if open
+    document.getElementById('info-modal').classList.remove('active');
   }
-
-  // Update local state so the UI reflects the vote immediately
-  currentVotes[id] = (currentVotes[id] || 0) + 1;
-  myVotes.add(id);
-  saveMyVotes();
-  renderDestinations();
-
-  showToast(`Voted for ${dest.name}! 🎉`, true);
-  document.getElementById('info-modal').classList.remove('active');
 };
 
 const cancelVote = (id) => {
@@ -150,6 +130,7 @@ const cancelVote = (id) => {
   currentVotes[id] = Math.max(0, currentVotes[id] - 1);
   myVotes.delete(id);
   saveMyVotes();
+  updateUrl();
   renderDestinations();
   showToast(`Vote removed for ${destinations.find(d=>d.id===id).name}`, true);
 };
@@ -281,12 +262,14 @@ const showToast = (msg, success=true) => {
 
 // --- Init ---
 const init = async () => {
+  const savedVotes = getVotesFromUrl();
+  // Fill in 0 for any destination that doesn't have a vote count yet
+  destinations.forEach(d => {
+    currentVotes[d.id] = savedVotes[d.id] || 0;
+  });
   myVotes = loadMyVotes();
-  await fetchVoteCounts();      // real counts from Supabase, shared across everyone
-  renderDestinations();          // show something immediately, don't block on geolocation
-  subscribeToVoteUpdates();      // live-sync when anyone else votes
   await getUserLocation();
-  renderDestinations();          // re-render once we have location, for accurate map links
+  renderDestinations();
 };
 
 init();
